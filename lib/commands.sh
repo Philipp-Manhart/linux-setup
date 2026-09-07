@@ -334,8 +334,16 @@ fedora_dev_info() {
 
 fedora_dev_update_self() {
   local repo="$FEDORA_DEV_ROOT"
-  [[ -d "$repo/.git" ]] || { printf 'This checkout has no Git metadata; update it from its source repository.\n' >&2; return 1; }
-  git -C "$repo" pull --ff-only
+  local -a git_cmd
+  if [[ -d "$repo/.git" || -f "$repo/.git" ]]; then
+    git_cmd=(git -C "$repo")
+  elif [[ -d "$repo/.linux-setup.git" ]]; then
+    git_cmd=(git --git-dir="$repo/.linux-setup.git" --work-tree="$repo")
+  else
+    printf 'This checkout has no Git metadata; update it from its source repository.\n' >&2
+    return 1
+  fi
+  "${git_cmd[@]}" pull --ff-only
   printf 'Updated linux-setup from %s\n' "$repo"
 }
 
