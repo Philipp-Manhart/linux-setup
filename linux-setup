@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly CLI_NAME="$(basename "$0")"
+readonly CLI_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+readonly INSTALLER="$CLI_DIR/lib/install.sh"
+readonly USER_BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"
+readonly VERSION_FILE="$CLI_DIR/VERSION"
+
+# shellcheck source=lib/config.sh
+source "$CLI_DIR/lib/config.sh"
+# shellcheck source=lib/plan.sh
+source "$CLI_DIR/lib/plan.sh"
+# shellcheck source=lib/commands.sh
+source "$CLI_DIR/lib/commands.sh"
+
+usage() {
+  cat <<EOF
+Usage: $CLI_NAME <command> [options]
+
+Commands:
+  install              Install or reconcile the Fedora development machine
+  apply                Reconcile the machine with machine.toml
+  update               Update Fedora, mise tools, Python, Codex and PostgreSQL
+  doctor               Verify the machine against machine.toml
+  diff                 Show differences from machine.toml
+  auth github          Configure GitHub OAuth, SSH and Git credentials
+  auth codex           Check or start Codex login
+  ssh configure        Install managed GitHub SSH defaults
+  skills sync          Sync an optional skills repository into ~/.agents/skills
+  desktop apply        Apply common GNOME/COSMIC integration
+  firmware             Refresh metadata and list firmware updates
+  security check       Run non-mutating security baseline checks
+  info                 Print a hardware and software inventory
+  update-self          Fast-forward this checkout from its Git remote
+  postgres <command>   Manage the local PostgreSQL service
+  profiles             List available installation profiles
+  plan [--profile P]   Show an installation plan without changing the system
+  help                 Show this help
+
+Install options:
+  --help               Show installer help
+
+Examples:
+  $CLI_NAME install
+  $CLI_NAME apply
+  $CLI_NAME doctor
+  $CLI_NAME diff
+  $CLI_NAME auth github
+  $CLI_NAME skills sync
+  $CLI_NAME postgres up
+  $CLI_NAME postgres psql
+
+The installer must be run as a normal user and uses sudo when needed.
+EOF
+}
+
+die() {
+  printf '%s: %s\n' "$CLI_NAME" "$*" >&2
+  exit 1
+}
+
+[[ -f "$INSTALLER" ]] || die "cannot find $INSTALLER"
+
+command="${1:-help}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+case "$command" in
+  install)
+    profile="$FEDORA_DEV_DEFAULT_PROFILE"
+    dry_run=0
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --profile)
+          [[ $# -ge 2 ]] || die '--profile requires a value'
+          profile="$2"
+          shift 2
+          ;;
+        --dry-run)
+          dry_run=1
+          shift
+          ;;
+        --help|-h)
+          exec bash "$INSTALLER" --help
+          ;;
+        *)
+          die "unknown install option: $1"
+          ;;
+      esac
+    done
+    fedora_dev_profile_valid "$profile" || die "unknown profile '$profile'; use 'linux-setup profiles'"
+    if (( dry_run )); then
+      fedora_dev_plan "$profile"
+      exit 0
+    fi
+    [[ "$profile" == full ]] || die "profile '$profile' is preview-only until the installer modules are migrated; use --dry-run"
+    exec bash "$INSTALLER"
+    ;;
+  apply)
+    [[ $# -eq 0 ]] || die "apply does not accept options; edit machine.toml and rerun it"
+    exec bash "$INSTALLER"
+    ;;
+  update)
+    helper="$USER_BIN/dev-$command"
+    [[ -x "$helper" ]] || die "'$command' is not installed yet; run '$CLI_NAME install' first"
+    exec "$helper" "$@"
+    ;;
+  doctor)
+    fedora_dev_doctor
+    ;;
+  diff)
+    [[ $# -eq 0 ]] || die "diff does not accept options"
+    fedora_dev_diff
+    ;;
+  auth)
+    subcommand="${1:-}"
+    [[ $# -gt 0 ]] && shift
+    [[ $# -eq 0 ]] || die "unknown auth option: $*"
+    case "$subcommand" in
+      github) fedora_dev_auth_github ;;
+      codex)  fedora_dev_auth_codex ;;
+      *) die "Usage: $CLI_NAME auth {github|codex}" ;;
+    esac
+    ;;
+  ssh)
+    subcommand="${1:-}"
+    [[ $# -gt 0 ]] && shift
+    [[ "$subcommand" == configure && $# -eq 0 ]] || die "Usage: $CLI_NAME ssh configure"
+    fedora_dev_configure_ssh
+    ;;
+  skills)
+    subcommand="${1:-}"
+    [[ $# -gt 0 ]] && shift
+    [[ "$subcommand" == sync && $# -eq 0 ]] || die "Usage: $CLI_NAME skills sync"
+    fedora_dev_skills_sync
+    ;;
+  desktop)
+    subcommand="${1:-}"
+    [[ $# -gt 0 ]] && shift
+    [[ "$subcommand" == apply && $# -eq 0 ]] || die "Usage: $CLI_NAME desktop apply"
+    fedora_dev_desktop_apply
+    ;;
+  firmware)
+    [[ $# -eq 0 ]] || die "firmware does not accept options"
+    fedora_dev_firmware
+    ;;
+  security)
+    subcommand="${1:-}"
+    [[ $# -gt 0 ]] && shift
+    [[ "$subcommand" == check && $# -eq 0 ]] || die "Usage: $CLI_NAME security check"
+    fedora_dev_security_check
+    ;;
+  info)
+    [[ $# -eq 0 ]] || die "info does not accept options"
+    fedora_dev_info
+    ;;
+  update-self)
+    [[ $# -eq 0 ]] || die "update-self does not accept options"
+    fedora_dev_update_self
+    ;;
+  postgres)
+    helper="$USER_BIN/pgdev"
+    [[ -x "$helper" ]] || die "'$command' is not installed yet; run '$CLI_NAME install' first"
+    exec "$helper" "$@"
+    ;;
+  profiles)
+    fedora_dev_print_profiles
+    ;;
+  plan)
+    profile="$FEDORA_DEV_DEFAULT_PROFILE"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --profile)
+          [[ $# -ge 2 ]] || die '--profile requires a value'
+          profile="$2"
+          shift 2
+          ;;
+        --help|-h)
+          printf 'Usage: %s plan [--profile PROFILE]\n' "$CLI_NAME"
+          exit 0
+          ;;
+        *)
+          die "unknown plan option: $1"
+          ;;
+      esac
+    done
+    fedora_dev_plan "$profile"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  version|--version)
+    if [[ -r "$VERSION_FILE" ]]; then
+      printf 'linux-setup %s\n' "$(<"$VERSION_FILE")"
+    else
+      printf '%s\n' 'linux-setup development version'
+    fi
+    ;;
+  *)
+    printf '%s: unknown command: %s\n\n' "$CLI_NAME" "$command" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

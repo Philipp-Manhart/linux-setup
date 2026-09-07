@@ -1,0 +1,20 @@
+# Local/editor state
+.vscode/
+.linux-setup.git/
+*.swp
+*~
+
+# Secrets and local environments
+.env
+.env.*
+!.env.example
+.venv/
+
+# Generated archives and backups
+*.bak
+*.bak-*
+
+# Tool caches
+__pycache__/
+.pytest_cache/
+.ruff_cache/

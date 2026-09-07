@@ -1,0 +1,36 @@
+# Canonical workstation configuration. Keep secrets out of this file.
+
+[machine]
+name = "linux-setup"
+expected_shell = "fish"
+desktop = "auto"
+
+[paths]
+projects = "~/Code"
+agent_skills = "~/.agents/skills"
+
+[toolchain]
+node = "24"
+pnpm = "12"
+bun = "latest"
+go = "1.27"
+uv = "latest"
+python = "3.14"
+postgres = "18"
+
+[vscode]
+web_profile = "Web Development"
+data_profile = "Python & Data"
+web_extensions = ["openai.chatgpt", "akamud.vscode-theme-onedark", "hverlin.mise-vscode", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+data_extensions = ["openai.chatgpt", "akamud.vscode-theme-onedark", "hverlin.mise-vscode", "ms-python.python", "ms-python.vscode-pylance", "ms-python.debugpy", "ms-python.vscode-python-envs", "charliermarsh.ruff", "tamasfe.even-better-toml", "mechatroner.rainbow-csv", "mathematic.vscode-pdf", "DBCode.dbcode"]
+
+[skills]
+# Public repository containing the canonical skills.
+repository = "https://github.com/Philipp-Manhart/skills.git"
+branch = "main"
+sync_mode = "symlink"
+
+[features]
+postgres_autostart = false
+desktop_integration = true
+firmware_updates = true
