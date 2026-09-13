@@ -744,6 +744,8 @@ cat > "$appearance_tmp" <<'EOF'
   "files.trimTrailingWhitespace": true,
   "workbench.startupEditor": "none",
   "git.confirmSync": true,
+  "git.autofetch": true,
+  "git.autofetchPeriod": 180,
   "search.exclude": {
     "**/.git": true,
     "**/.venv": true,
@@ -772,6 +774,8 @@ cat > "$appearance_tmp" <<'EOF'
     "files.trimTrailingWhitespace",
     "workbench.startupEditor",
     "git.confirmSync",
+    "git.autofetch",
+    "git.autofetchPeriod",
     "search.exclude"
   ]
 }

@@ -29,6 +29,7 @@ Commands:
   ssh configure        Install managed GitHub SSH defaults
   skills sync          Pull ~/Code/skills and link its skills into Codex
   desktop apply        Apply common GNOME/COSMIC integration
+  desktop wallpaper F  Set a GNOME wallpaper from an image file or asset
   firmware             Refresh metadata and list firmware updates
   security check       Run non-mutating security baseline checks
   info                 Print a hardware and software inventory
@@ -139,8 +140,17 @@ case "$command" in
   desktop)
     subcommand="${1:-}"
     [[ $# -gt 0 ]] && shift
-    [[ "$subcommand" == apply && $# -eq 0 ]] || die "Usage: $CLI_NAME desktop apply"
-    fedora_dev_desktop_apply
+    case "$subcommand" in
+      apply)
+        [[ $# -eq 0 ]] || die "Usage: $CLI_NAME desktop apply"
+        fedora_dev_desktop_apply
+        ;;
+      wallpaper)
+        [[ $# -eq 1 ]] || die "Usage: $CLI_NAME desktop wallpaper <image-file>"
+        fedora_dev_desktop_wallpaper "$1"
+        ;;
+      *) die "Usage: $CLI_NAME desktop {apply|wallpaper <image-file>}" ;;
+    esac
     ;;
   firmware)
     [[ $# -eq 0 ]] || die "firmware does not accept options"

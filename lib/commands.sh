@@ -391,3 +391,24 @@ fedora_dev_desktop_apply() {
       ;;
   esac
 }
+
+fedora_dev_desktop_wallpaper() {
+  local requested="$1" image uri
+  if [[ "$requested" == /* ]]; then
+    image="$requested"
+  else
+    image="$FEDORA_DEV_ROOT/$requested"
+  fi
+  [[ -f "$image" ]] || {
+    printf 'Wallpaper image not found: %s\n' "$image" >&2
+    return 2
+  }
+  fedora_dev_have gsettings || {
+    printf 'gsettings is required to set a GNOME wallpaper.\n' >&2
+    return 1
+  }
+  uri="file://$(readlink -f "$image")"
+  gsettings set org.gnome.desktop.background picture-uri "$uri"
+  gsettings set org.gnome.desktop.background picture-uri-dark "$uri"
+  printf 'GNOME wallpaper set from: %s\n' "$image"
+}

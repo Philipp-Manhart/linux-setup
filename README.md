@@ -40,6 +40,7 @@ The CLI is intentionally small and delegates the installation work to
 ./linux-setup auth codex
 ./linux-setup ssh configure
 ./linux-setup skills sync
+./linux-setup desktop wallpaper assets/wallpapers/my-wallpaper.jpg
 ./linux-setup firmware
 ./linux-setup security check
 ./linux-setup info
@@ -51,6 +52,19 @@ The CLI is intentionally small and delegates the installation work to
 
 After installation, the same maintenance commands are also available directly
 as `dev-doctor`, `dev-update`, `linux-setup`, and `pgdev` from `~/.local/bin`.
+
+## Tests
+
+Run the safe CLI test suite with:
+
+```bash
+make test
+```
+
+It uses temporary directories and local Git remotes to cover CLI argument
+handling, profile plans, configuration parsing, skill synchronization, SSH and
+desktop idempotency, and installer-generated VS Code settings. It never runs
+the Fedora installer, `sudo`, DNF, Docker, or network operations.
 
 Available profiles are currently being migrated into the modular installer.
 The `minimal`, `web`, and `data` profiles can be inspected with `plan`; the
@@ -119,6 +133,19 @@ Common integration uses XDG paths. GNOME adds the `~/Code` Files bookmark;
 COSMIC has its own module so later COSMIC-specific settings do not leak into
 the common or GNOME paths. Use `linux-setup desktop apply` to reapply the
 detected module.
+
+## Visual assets and wallpaper
+
+Add wallpapers, icons, and other reusable images under [`assets/`](assets/).
+To set a GNOME wallpaper from an asset, run:
+
+```bash
+./linux-setup desktop wallpaper assets/wallpapers/my-wallpaper.jpg
+```
+
+The command accepts an absolute image path too and sets GNOME's light and dark
+wallpaper preferences. See [`assets/README.md`](assets/README.md) for the
+directory layout and Git LFS guidance for large images.
 
 ## Git-synced Codex skills
 
@@ -957,6 +984,8 @@ The installer also installs the **Atom One Dark Theme** in the Default, Web Deve
 VS Code's `workbench.settings.applyToAllProfiles` mechanism is used so these visual preferences stay synchronized across the Default profile and both development profiles, while language/tool-specific settings remain profile-scoped. Localhost links open in the external browser, the browser title-bar entry is hidden, and chat agents cannot open the integrated browser. VS Code still allows the integrated browser to be opened explicitly from its command palette.
 
 The same keyboard map is written to Default, Web Development, and Python & Data. It uses scan-code bindings for `Ctrl` + the physical backquote/backslash keys, which keeps those shortcuts in the same place on a German layout. `Ctrl+T` toggles the terminal; `Ctrl+Shift+T` creates a terminal; `Ctrl+D` duplicates the current editor line; and `Ctrl+F` is sent to Fish while a terminal is focused, so it accepts Fish's autosuggestion instead of opening VS Code's terminal find UI. Press `Tab` for Fish's normal completion list.
+
+Git auto-fetch is enabled for every profile with a 180-second interval. Fetch only downloads remote commits; it does not merge or modify the working tree.
 
 ## Go editor tooling
 
