@@ -14,8 +14,8 @@ FEDORA_DEV_CONFIG_FILE="${FEDORA_DEV_CONFIG_FILE:-$FEDORA_DEV_ROOT/machine.toml}
 fedora_dev_expand_path() {
   local value="$1"
   case "$value" in
-    ~/*) printf '%s/%s\n' "$HOME" "${value#~/}" ;;
-    ~)   printf '%s\n' "$HOME" ;;
+    "~/"*) printf '%s/%s\n' "$HOME" "${value:2}" ;;
+    "~")   printf '%s\n' "$HOME" ;;
     *)   printf '%s\n' "$value" ;;
   esac
 }

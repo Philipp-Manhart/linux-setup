@@ -7,13 +7,14 @@ desktop = "auto"
 
 [paths]
 projects = "~/Code"
-agent_skills = "~/.agents/skills"
+codex_skills = "~/.local/share/codex/skills"
 
 [toolchain]
 node = "24"
 pnpm = "12"
 bun = "latest"
 go = "1.27"
+rust = "stable"
 uv = "latest"
 python = "3.14"
 postgres = "18"
@@ -25,7 +26,9 @@ web_extensions = ["openai.chatgpt", "akamud.vscode-theme-onedark", "hverlin.mise
 data_extensions = ["openai.chatgpt", "akamud.vscode-theme-onedark", "hverlin.mise-vscode", "ms-python.python", "ms-python.vscode-pylance", "ms-python.debugpy", "ms-python.vscode-python-envs", "charliermarsh.ruff", "tamasfe.even-better-toml", "mechatroner.rainbow-csv", "mathematic.vscode-pdf", "DBCode.dbcode"]
 
 [skills]
-# Public repository containing the canonical skills.
+# Editable Git checkout; each directory containing SKILL.md is exposed to Codex.
+checkout = "~/Code/skills"
+# GitHub repository containing the canonical skills.
 repository = "https://github.com/Philipp-Manhart/skills.git"
 branch = "main"
 sync_mode = "symlink"

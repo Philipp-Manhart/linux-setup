@@ -14,7 +14,7 @@ fedora_dev_plan() {
 
   printf 'Planned components:\n'
   printf '  - Fedora base packages, Git, Fish and build tools\n'
-  printf '  - mise-managed developer tools\n'
+  printf '  - mise-managed developer tools, including Rust stable\n'
 
   case "$profile" in
     web|full)

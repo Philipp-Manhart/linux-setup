@@ -27,7 +27,7 @@ Commands:
   auth github          Configure GitHub OAuth, SSH and Git credentials
   auth codex           Check or start Codex login
   ssh configure        Install managed GitHub SSH defaults
-  skills sync          Sync an optional skills repository into ~/.agents/skills
+  skills sync          Pull ~/Code/skills and link its skills into Codex
   desktop apply        Apply common GNOME/COSMIC integration
   firmware             Refresh metadata and list firmware updates
   security check       Run non-mutating security baseline checks

@@ -1,6 +1,6 @@
 # Fedora 44 Development Machine
 
-An opinionated bootstrap for a **clean Fedora 44 workstation** focused on Python, TypeScript/JavaScript, Go, PostgreSQL, Docker, VS Code, and OpenAI Codex.
+An opinionated bootstrap for a **clean Fedora 44 workstation** focused on Python, TypeScript/JavaScript, Go, Rust, PostgreSQL, Docker, VS Code, and OpenAI Codex.
 
 Current release: `0.1.0`.
 
@@ -120,18 +120,34 @@ COSMIC has its own module so later COSMIC-specific settings do not leak into
 the common or GNOME paths. Use `linux-setup desktop apply` to reapply the
 detected module.
 
-## Optional global skills repository
+## Git-synced Codex skills
 
-Skills synchronization remains available, but no skills are bundled by this
-project. To use a separate public skills repository, set `[skills].repository`
-in `machine.toml`, then run:
+`~/Code/skills` is the editable Git checkout for your reusable skills. Every
+directory beneath it that contains `SKILL.md` is symlinked into Codex's active
+skills directory, `~/.local/share/codex/skills`. This supports your existing
+`published/` and `unpublished/` folders without flattening the source checkout.
+
+The repository and checkout location are configured in `[skills]` in
+`machine.toml`. Clone the configured GitHub repository into that location on a
+new machine, then run:
 
 ```bash
 linux-setup skills sync
 ```
 
-The repository is cloned into XDG data and its skill directories are symlinked
-into `~/.agents/skills`.
+```fish
+cd ~/Code/skills
+git add .
+git commit -m "Describe the skill change"
+git push
+linux-setup skills sync
+```
+
+`skills sync` uses `git pull --ff-only` when the checkout is clean and never
+resets or overwrites uncommitted skill edits. It then refreshes the symlinks, so
+newly created skills become available to Codex. If a pre-existing, non-symlink
+Codex skill has the same name, it is preserved as `<skill>.before-linux-setup`
+before the managed symlink is made.
 
 ---
 
@@ -153,6 +169,7 @@ Fedora 44
 │   ├── pnpm 12
 │   ├── Bun
 │   ├── Go 1.27
+│   ├── Rust stable (via rustup)
 │   ├── uv
 │   ├── Starship
 │   ├── zoxide
@@ -171,7 +188,7 @@ Fedora 44
 ├── Codex
 │   ├── CLI
 │   ├── VS Code extension
-│   └── ~/.agents/skills
+│   └── ~/.local/share/codex/skills → ~/Code/skills
 │
 └── ~/Code
     └── all source repositories/projects
@@ -245,8 +262,6 @@ The setup follows the XDG Base Directory layout wherever practical.
 ```text
 ~
 ├── Code/                         projects
-├── .agents/
-│   └── skills/                  global agent/Codex skills
 ├── .config/
 │   ├── fish/                    Fish configuration/functions
 │   ├── dev-machine/             local machine service configuration
@@ -273,7 +288,8 @@ Important paths:
 | Caches | `~/.cache` |
 | User commands | `~/.local/bin` |
 | Projects | `~/Code` |
-| Global Agent Skills | `~/.agents/skills` |
+| Editable skills repository | `~/Code/skills` |
+| Active Codex skills | `~/.local/share/codex/skills` |
 | Codex data | `~/.local/share/codex` |
 | Go workspace data | `~/.local/share/go` |
 
@@ -452,6 +468,7 @@ Global defaults installed by the script:
 | pnpm | 12 |
 | Bun | latest |
 | Go | 1.27 |
+| Rust | stable |
 | uv | latest |
 | Starship | latest |
 | zoxide | latest |
@@ -476,6 +493,24 @@ mise current
 mise install
 mise upgrade
 mise doctor
+```
+
+## Rust
+
+Rust is installed by mise's native `rust` backend, which manages the Rust
+toolchain through `rustup`; the installer does not also install Rust from DNF
+or the standalone rustup script. The global channel is `stable`, while Cargo
+and rustup data live under `~/.local/share/cargo` and `~/.local/share/rustup`.
+Executables installed with `cargo install` are available through Cargo's XDG
+`bin` directory, which the installer adds to `PATH`.
+
+For a project, pin the required toolchain in its committed `mise.toml`. When a
+project already has `rust-toolchain.toml`, enable mise's Rust idiomatic-version
+file support instead of declaring a competing Rust version in `mise.toml`:
+
+```fish
+mise settings add idiomatic_version_file_enable_tools rust
+mise install
 ```
 
 ---
@@ -906,14 +941,22 @@ The installer also installs the **Atom One Dark Theme** in the Default, Web Deve
 {
   "workbench.colorTheme": "Atom One Dark",
   "workbench.browser.showInTitleBar": false,
+  "workbench.browser.openLocalhostLinks": false,
+  "workbench.browser.enableChatTools": false,
   "window.commandCenter": false,
   "chat.titleBar.openInAgentsWindow.enabled": false,
   "workbench.activityBar.compact": true,
-  "workbench.layoutControl.enabled": false
+  "workbench.layoutControl.enabled": false,
+  "preview.defaultBrowserPreviewType": "external",
+  "window.titleBarStyle": "custom",
+  "window.controlsStyle": "hidden",
+  "window.density.layout": "compact"
 }
 ```
 
-VS Code's `workbench.settings.applyToAllProfiles` mechanism is used so these visual preferences stay synchronized across the Default profile and both development profiles, while language/tool-specific settings remain profile-scoped. On reruns, the installer merges these managed appearance keys into an existing valid `settings.json` rather than replacing unrelated settings.
+VS Code's `workbench.settings.applyToAllProfiles` mechanism is used so these visual preferences stay synchronized across the Default profile and both development profiles, while language/tool-specific settings remain profile-scoped. Localhost links open in the external browser, the browser title-bar entry is hidden, and chat agents cannot open the integrated browser. VS Code still allows the integrated browser to be opened explicitly from its command palette.
+
+The same keyboard map is written to Default, Web Development, and Python & Data. It uses scan-code bindings for `Ctrl` + the physical backquote/backslash keys, which keeps those shortcuts in the same place on a German layout. `Ctrl+T` toggles the terminal; `Ctrl+Shift+T` creates a terminal; `Ctrl+D` duplicates the current editor line; and `Ctrl+F` is sent to Fish while a terminal is focused, so it accepts Fish's autosuggestion instead of opening VS Code's terminal find UI. Press `Tab` for Fish's normal completion list.
 
 ## Go editor tooling
 
@@ -921,7 +964,7 @@ Go itself is installed, but the Go VS Code extension is intentionally omitted fo
 
 ---
 
-# Codex CLI and Agent Skills
+# Codex CLI and Skills
 
 The Codex CLI is installed through npm, whose global prefix is redirected under XDG-managed user data.
 
@@ -931,35 +974,32 @@ Codex data:
 ~/.local/share/codex
 ```
 
-Global user-level Agent Skills:
+Editable skills checkout:
 
 ```text
-~/.agents/skills
+~/Code/skills
 ```
 
-Example:
+Codex reads symlinks from:
 
 ```text
-~/.agents/skills/
+~/.local/share/codex/skills/
 └── <skill-name>/
     └── SKILL.md
 ```
 
-Project-specific skills belong inside the repository:
+For a new reusable skill, create and test it in the Git checkout:
 
-```text
-~/Code/my-project/.agents/skills/<skill-name>/SKILL.md
+```fish
+cd ~/Code/skills
+mkdir -p unpublished/my-skill
+code unpublished/my-skill/SKILL.md
+linux-setup skills sync
 ```
 
-This gives you a clean distinction:
-
-```text
-~/.agents/skills
-→ reusable skills available across projects
-
-project/.agents/skills
-→ project-specific skills that can be committed with the repository
-```
+Commit and push the change from `~/Code/skills` when you are ready to share it
+with GitHub; the symlink makes it immediately available to local Codex after
+`linux-setup skills sync`.
 
 ---
 

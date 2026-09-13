@@ -7,7 +7,7 @@ set -Eeuo pipefail
 # Installs and configures:
 #   - Git + GitHub CLI + common CLI/build utilities
 #   - mise as the single toolchain/version manager
-#   - Node.js 24 LTS, pnpm 12, Bun, Go 1.27, uv
+#   - Node.js 24 LTS, pnpm 12, Bun, Go 1.27, Rust stable, uv
 #   - Python 3.14 managed by uv
 #   - Fish as the default login shell
 #   - Starship + zoxide + LazyDocker
@@ -18,7 +18,7 @@ set -Eeuo pipefail
 #   - Two focused VS Code profiles: Web Development + Python & Data
 #   - Codex VS Code extension in every profile; DBCode in Python & Data
 #   - Codex CLI in an XDG-clean location
-#   - Global Agent Skills directory for Codex at ~/.agents/skills
+#   - Git-synced Codex skills from ~/Code/skills
 #   - ~/Code bookmark in GNOME Files (Nautilus)
 #   - JetBrainsMono Nerd Font for Starship glyphs
 #
@@ -105,13 +105,14 @@ fi
 
 readonly DEV_CONFIG_DIR="$XDG_CONFIG_HOME/dev-machine"
 readonly POSTGRES_DIR="$DEV_CONFIG_DIR/postgres"
-readonly AGENT_SKILLS_DIR="$(fedora_dev_expand_path "$(fedora_dev_config_value paths agent_skills '~/.agents/skills')")"
+readonly CODEX_SKILLS_DIR="$(fedora_dev_expand_path "$(fedora_dev_config_value paths codex_skills '~/.local/share/codex/skills')")"
 readonly VSCODE_WEB_PROFILE="$(fedora_dev_config_value vscode web_profile 'Web Development')"
 readonly VSCODE_DATA_PROFILE="$(fedora_dev_config_value vscode data_profile 'Python & Data')"
 readonly NODE_VERSION="$(fedora_dev_config_value toolchain node 24)"
 readonly PNPM_VERSION="$(fedora_dev_config_value toolchain pnpm 12)"
 readonly BUN_VERSION="$(fedora_dev_config_value toolchain bun latest)"
 readonly GO_VERSION="$(fedora_dev_config_value toolchain go 1.27)"
+readonly RUST_VERSION="$(fedora_dev_config_value toolchain rust stable)"
 readonly UV_VERSION="$(fedora_dev_config_value toolchain uv latest)"
 readonly PYTHON_VERSION="$(fedora_dev_config_value toolchain python 3.14)"
 readonly POSTGRES_VERSION="$(fedora_dev_config_value toolchain postgres 18)"
@@ -123,7 +124,7 @@ mkdir -p \
   "$XDG_CACHE_HOME" \
   "$XDG_BIN_HOME" \
   "$DEV_HOME" \
-  "$AGENT_SKILLS_DIR"
+  "$CODEX_SKILLS_DIR"
 
 log "Preparing the clean XDG home layout"
 
@@ -138,6 +139,8 @@ mkdir -p \
   "$XDG_CONFIG_HOME/docker" \
   "$XDG_CONFIG_HOME/git" \
   "$XDG_DATA_HOME/go" \
+  "$XDG_DATA_HOME/cargo" \
+  "$XDG_DATA_HOME/rustup" \
   "$XDG_DATA_HOME/npm" \
   "$XDG_DATA_HOME/pnpm" \
   "$XDG_DATA_HOME/bun/install/global" \
@@ -219,6 +222,10 @@ GOBIN=$XDG_BIN_HOME
 GOMODCACHE=$XDG_CACHE_HOME/go/mod
 GOCACHE=$XDG_CACHE_HOME/go/build
 
+# Rust: mise uses rustup internally; keep its toolchains and Cargo installs XDG-clean.
+RUSTUP_HOME=$XDG_DATA_HOME/rustup
+CARGO_HOME=$XDG_DATA_HOME/cargo
+
 # npm/pnpm: no ~/.npm cache or ad-hoc global package folder
 NPM_CONFIG_USERCONFIG=$XDG_CONFIG_HOME/npm/npmrc
 NPM_CONFIG_CACHE=$XDG_CACHE_HOME/npm
@@ -238,7 +245,7 @@ PSQL_HISTORY=$XDG_STATE_HOME/postgresql/psql_history
 LESSHISTFILE=$XDG_STATE_HOME/less/history
 
 # GUI apps and shells can resolve user binaries and mise tools.
-PATH=$XDG_BIN_HOME:$XDG_DATA_HOME/mise/shims:$XDG_DATA_HOME/pnpm:$XDG_DATA_HOME/npm/bin:\${PATH}
+PATH=$XDG_BIN_HOME:$XDG_DATA_HOME/mise/shims:$XDG_DATA_HOME/cargo/bin:$XDG_DATA_HOME/pnpm:$XDG_DATA_HOME/npm/bin:\${PATH}
 EOF
 
 # Apply the same environment immediately to this bootstrap process.
@@ -269,6 +276,7 @@ mise use -g \
   "pnpm@$PNPM_VERSION" \
   "bun@$BUN_VERSION" \
   "go@$GO_VERSION" \
+  "rust@$RUST_VERSION" \
   "uv@$UV_VERSION" \
   starship@latest \
   zoxide@latest \
@@ -400,6 +408,9 @@ set -gx GOBIN "$XDG_BIN_HOME"
 set -gx GOMODCACHE "$XDG_CACHE_HOME/go/mod"
 set -gx GOCACHE "$XDG_CACHE_HOME/go/build"
 
+set -gx RUSTUP_HOME "$XDG_DATA_HOME/rustup"
+set -gx CARGO_HOME "$XDG_DATA_HOME/cargo"
+
 set -gx NPM_CONFIG_USERCONFIG "$XDG_CONFIG_HOME/npm/npmrc"
 set -gx NPM_CONFIG_CACHE "$XDG_CACHE_HOME/npm"
 set -gx NPM_CONFIG_PREFIX "$XDG_DATA_HOME/npm"
@@ -415,7 +426,7 @@ set -gx NODE_REPL_HISTORY "$XDG_STATE_HOME/node/repl_history"
 set -gx PSQL_HISTORY "$XDG_STATE_HOME/postgresql/psql_history"
 set -gx LESSHISTFILE "$XDG_STATE_HOME/less/history"
 
-fish_add_path -g "$XDG_BIN_HOME" "$XDG_DATA_HOME/mise/shims" "$XDG_DATA_HOME/pnpm" "$XDG_DATA_HOME/npm/bin"
+fish_add_path -g "$XDG_BIN_HOME" "$XDG_DATA_HOME/mise/shims" "$XDG_DATA_HOME/cargo/bin" "$XDG_DATA_HOME/pnpm" "$XDG_DATA_HOME/npm/bin"
 EOF
 
 cat > "$XDG_CONFIG_HOME/fish/config.fish" <<'EOF'
@@ -698,10 +709,12 @@ done < <(fedora_dev_config_list vscode data_extensions)
 
 ok "VS Code profiles configured: $VSCODE_WEB_PROFILE and $VSCODE_DATA_PROFILE"
 
-# Keep the visual shell identical across Default + every named profile.
-# VS Code supports marking individual settings as application-wide via
-# workbench.settings.applyToAllProfiles, while language/tool settings remain
-# profile-specific.
+# Keep the visual shell and shared terminal behavior identical across Default +
+# every named profile. VS Code cannot disable the integrated browser entirely,
+# so hide its entry point, keep localhost links external, and disallow chat tools
+# from opening it. VS Code supports marking individual settings as
+# application-wide via workbench.settings.applyToAllProfiles, while language/tool
+# settings remain profile-specific.
 log "Applying shared VS Code appearance settings to all profiles"
 VSCODE_USER_DIR="$XDG_CONFIG_HOME/Code/User"
 VSCODE_SETTINGS="$VSCODE_USER_DIR/settings.json"
@@ -712,11 +725,20 @@ cat > "$appearance_tmp" <<'EOF'
 {
   "workbench.colorTheme": "Atom One Dark",
   "workbench.browser.showInTitleBar": false,
+  "workbench.browser.openLocalhostLinks": false,
+  "workbench.browser.enableChatTools": false,
   "window.commandCenter": false,
   "chat.titleBar.openInAgentsWindow.enabled": false,
   "workbench.activityBar.compact": true,
   "workbench.layoutControl.enabled": false,
+  "preview.defaultBrowserPreviewType": "external",
+  "window.titleBarStyle": "custom",
+  "window.controlsStyle": "hidden",
+  "window.density.layout": "compact",
   "terminal.integrated.defaultProfile.linux": "fish",
+  "terminal.integrated.commandsToSkipShell": [
+    "-workbench.action.terminal.focusFind"
+  ],
   "files.autoSave": "afterDelay",
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,
@@ -733,11 +755,18 @@ cat > "$appearance_tmp" <<'EOF'
     "workbench.colorCustomizations",
     "workbench.colorTheme",
     "workbench.browser.showInTitleBar",
+    "workbench.browser.openLocalhostLinks",
+    "workbench.browser.enableChatTools",
     "window.commandCenter",
     "chat.titleBar.openInAgentsWindow.enabled",
     "workbench.activityBar.compact",
     "workbench.layoutControl.enabled",
+    "preview.defaultBrowserPreviewType",
+    "window.titleBarStyle",
+    "window.controlsStyle",
+    "window.density.layout",
     "terminal.integrated.defaultProfile.linux",
+    "terminal.integrated.commandsToSkipShell",
     "files.autoSave",
     "files.insertFinalNewline",
     "files.trimTrailingWhitespace",
@@ -855,6 +884,108 @@ for profile_name in "$VSCODE_WEB_PROFILE" "$VSCODE_DATA_PROFILE"; do
 done
 rm -r -- "$profile_settings_tmp"
 
+# Keyboard shortcuts are profile resources, unlike application-wide settings.
+# Write the same managed map to Default and every named profile, preserving
+# unrelated user bindings. Scan-code bindings keep the shortcuts physical and
+# therefore predictable on a German keyboard layout.
+log "Applying shared VS Code keyboard shortcuts to all profiles"
+keybindings_tmp="$(mktemp)"
+cat > "$keybindings_tmp" <<'EOF'
+[
+  {
+    "key": "ctrl+[Backquote]",
+    "command": "workbench.action.splitEditor"
+  },
+  {
+    "key": "ctrl+d",
+    "command": "editor.action.copyLinesDownAction",
+    "when": "editorTextFocus && !editorReadonly"
+  },
+  {
+    "key": "ctrl+shift+alt+down",
+    "command": "-editor.action.copyLinesDownAction",
+    "when": "editorTextFocus && !editorReadonly"
+  },
+  {
+    "key": "ctrl+[Backslash]",
+    "command": "editor.action.commentLine",
+    "when": "editorTextFocus && !editorReadonly"
+  },
+  {
+    "key": "ctrl+shift+7",
+    "command": "-editor.action.commentLine",
+    "when": "editorTextFocus && !editorReadonly"
+  },
+  {
+    "key": "ctrl+t",
+    "command": "-workbench.action.showAllSymbols"
+  },
+  {
+    "key": "ctrl+t",
+    "command": "workbench.action.terminal.toggleTerminal"
+  },
+  {
+    "key": "ctrl+shift+[Equal]",
+    "command": "-workbench.action.terminal.toggleTerminal"
+  },
+  {
+    "key": "ctrl+shift+t",
+    "command": "-workbench.action.reopenClosedEditor"
+  },
+  {
+    "key": "ctrl+shift+t",
+    "command": "workbench.action.terminal.new"
+  },
+  {
+    "key": "ctrl+f",
+    "command": "-workbench.action.terminal.focusFind",
+    "when": "terminalFocus"
+  }
+]
+EOF
+
+if ! jq empty "$keybindings_tmp" >/dev/null 2>&1; then
+  rm -f "$keybindings_tmp"
+  die "The installer generated invalid VS Code keybindings JSON."
+fi
+
+merge_keybindings() {
+  local keybindings_file="$1" merged_file normalized_file
+  mkdir -p "$(dirname -- "$keybindings_file")"
+  merged_file="$(mktemp)"
+  if [[ -s "$keybindings_file" ]]; then
+    normalized_file="$(mktemp)"
+    # VS Code creates JSONC keybindings files with a leading comment. Support
+    # that normal form before merging; fail clearly for more complex invalid JSONC.
+    sed -E '/^[[:space:]]*\/\//d; /^[[:space:]]*\/\*/,/\*\//d' "$keybindings_file" > "$normalized_file"
+    if jq empty "$normalized_file" >/dev/null 2>&1 && jq -s '
+      .[0] as $old | .[1] as $managed |
+      ($managed | map(.key) | unique) as $managed_keys |
+      (($old | map(select(.key as $key | ($managed_keys | index($key) | not)))) + $managed)
+    ' "$normalized_file" "$keybindings_tmp" > "$merged_file"; then
+      mv "$merged_file" "$keybindings_file"
+    else
+      rm -f "$normalized_file" "$merged_file"
+      die "Existing VS Code keybindings are not valid JSON or simple JSONC: $keybindings_file"
+    fi
+    rm -f "$normalized_file"
+  else
+    cp -- "$keybindings_tmp" "$keybindings_file"
+    rm -f "$merged_file"
+  fi
+}
+
+merge_keybindings "$VSCODE_USER_DIR/keybindings.json"
+for profile_name in "$VSCODE_WEB_PROFILE" "$VSCODE_DATA_PROFILE"; do
+  if profile_file="$(profile_settings_path "$profile_name")"; then
+    merge_keybindings "$(dirname -- "$profile_file")/keybindings.json"
+  else
+    warn "Could not locate VS Code profile metadata for '$profile_name'; keybindings were not changed."
+  fi
+done
+rm -f "$keybindings_tmp"
+ok "VS Code keyboard shortcuts shared across Default, Web Development and Python & Data"
+
 # -----------------------------------------------------------------------------
 # Git defaults in XDG config (do not touch identity or existing ~/.gitconfig)
 # -----------------------------------------------------------------------------
@@ -882,13 +1013,13 @@ Thumbs.db
 *~
 EOF
 
-# Synchronize optional public skills only when the repository is configured.
+# Synchronize the editable Git skills checkout when a repository is configured.
 # A placeholder URL keeps a fresh checkout self-contained and non-failing.
 SKILLS_REPOSITORY="$(fedora_dev_config_value skills repository '')"
 if [[ -n "$SKILLS_REPOSITORY" && "$SKILLS_REPOSITORY" != *REPLACE_WITH_YOUR_GITHUB_USER* ]]; then
   fedora_dev_skills_sync || warn "Could not synchronize canonical skills; run 'linux-setup skills sync' when network access is available."
 else
-  warn "Optional skills repository is not configured; set [skills].repository in machine.toml to enable sync."
+  warn "Skills repository is not configured; set [skills].repository in machine.toml to enable sync."
 fi
 
 # -----------------------------------------------------------------------------
@@ -958,6 +1089,7 @@ printf '  Node.js:    %s (mise)\n' "$NODE_VERSION"
 printf '  pnpm:       %s (mise)\n' "$PNPM_VERSION"
 printf '  Bun:        %s (mise)\n' "$BUN_VERSION"
 printf '  Go:         %s (mise)\n' "$GO_VERSION"
+printf '  Rust:       %s (mise/rustup)\n' "$RUST_VERSION"
 printf '  LazyDocker: latest (mise)\n'
 printf '  PostgreSQL: %s (Docker)\n' "$POSTGRES_IMAGE"
 printf '  Projects:   %s\n' "$DEV_HOME"
@@ -974,7 +1106,8 @@ printf '  z <name>         smart directory navigation via zoxide\n'
 printf '  lazydocker       interactive Docker/container manager\n'
 printf '  code-web [path]  open a project with the Web Development profile\n'
 printf '  code-data [path] open a project with the Python & Data profile\n'
-printf '  skills:          %s\n' "$AGENT_SKILLS_DIR"
+printf '  skills source:   %s\n' "$(fedora_dev_config_value skills checkout "$DEV_HOME/skills")"
+printf '  Codex skills:    %s\n' "$CODEX_SKILLS_DIR"
 
 
 printf '\nIMPORTANT:\n'

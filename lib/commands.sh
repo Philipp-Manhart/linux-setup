@@ -18,10 +18,10 @@ fedora_dev_xdg_init() {
   else
     export DEV_HOME
   fi
-  if [[ -z "${AGENT_SKILLS_DIR:-}" ]]; then
-    export AGENT_SKILLS_DIR="$(fedora_dev_expand_path "$(fedora_dev_config_value paths agent_skills '~/.agents/skills')")"
+  if [[ -z "${CODEX_SKILLS_DIR:-}" ]]; then
+    export CODEX_SKILLS_DIR="$(fedora_dev_expand_path "$(fedora_dev_config_value paths codex_skills '~/.local/share/codex/skills')")"
   else
-    export AGENT_SKILLS_DIR
+    export CODEX_SKILLS_DIR
   fi
 }
 
@@ -120,10 +120,10 @@ fedora_dev_doctor() {
   if fedora_dev_have gh && gh auth status >/dev/null 2>&1; then fedora_dev_mark 'GitHub auth' ok 'gh is authenticated'; else fedora_dev_mark 'GitHub auth' fail 'run: linux-setup auth github'; fi
 
   if fedora_dev_have docker && docker info >/dev/null 2>&1; then fedora_dev_mark 'Docker' ok 'daemon reachable'; else fedora_dev_mark 'Docker' fail 'daemon unavailable'; fi
-  if fedora_dev_have mise && mise which node >/dev/null 2>&1 && mise which go >/dev/null 2>&1; then
-    fedora_dev_mark 'mise shims' ok 'node and go resolve'
+  if fedora_dev_have mise && mise which node >/dev/null 2>&1 && mise which go >/dev/null 2>&1 && mise which cargo >/dev/null 2>&1; then
+    fedora_dev_mark 'mise shims' ok 'node, go and Rust/Cargo resolve'
   else
-    fedora_dev_mark 'mise shims' fail 'node/go do not resolve through mise'
+    fedora_dev_mark 'mise shims' fail 'node/go/Rust do not resolve through mise'
   fi
   if fedora_dev_have python && fedora_dev_have uv; then
     local python_path uv_python
@@ -195,7 +195,7 @@ fedora_dev_diff() {
       fi
     done < <(fedora_dev_config_list vscode "$key")
   done
-  for tool in node pnpm go uv; do
+  for tool in node pnpm go rust uv; do
     desired="$(fedora_dev_config_value toolchain "$tool" '')"
     if fedora_dev_have mise; then current="$(mise current "$tool" 2>/dev/null | head -n 1 || true)"; else current='not installed'; fi
     if [[ -n "$desired" && "$desired" != latest && "$current" != *"$desired"* ]]; then
@@ -250,7 +250,7 @@ fedora_dev_auth_codex() {
 }
 
 fedora_dev_skills_sync() {
-  local repo branch source_dir skill target mode
+  local repo branch source_dir skill target mode existing_backup synced=0
   repo="$(fedora_dev_config_value skills repository '')"
   branch="$(fedora_dev_config_value skills branch main)"
   mode="$(fedora_dev_config_value skills sync_mode symlink)"
@@ -258,26 +258,49 @@ fedora_dev_skills_sync() {
     printf 'Set [skills].repository in machine.toml before syncing skills.\n' >&2
     return 2
   }
-  source_dir="${XDG_DATA_HOME:-$HOME/.local/share}/dev-machine/skills"
-  mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/dev-machine"
-  if [[ -d "$source_dir/.git" ]]; then
-    git -C "$source_dir" fetch origin "$branch"
-    git -C "$source_dir" reset --hard "origin/$branch"
+  source_dir="$(fedora_dev_expand_path "$(fedora_dev_config_value skills checkout "$DEV_HOME/skills")")"
+  if [[ -e "$source_dir" ]]; then
+    if ! git -C "$source_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      printf 'Skills checkout exists but is not a Git checkout: %s\n' "$source_dir" >&2
+      printf 'Initialize it with the configured GitHub repository, then rerun: linux-setup skills sync\n' >&2
+      return 2
+    fi
+    if [[ -z "$(git -C "$source_dir" status --porcelain)" ]]; then
+      git -C "$source_dir" pull --ff-only origin "$branch"
+    else
+      printf 'Skills checkout has local changes; preserving them and skipping GitHub pull.\n'
+    fi
   else
+    mkdir -p "$(dirname -- "$source_dir")"
     git clone --branch "$branch" "$repo" "$source_dir"
   fi
-  mkdir -p "$AGENT_SKILLS_DIR"
+  mkdir -p "$CODEX_SKILLS_DIR"
   while IFS= read -r -d '' skill; do
-    [[ -f "$skill/SKILL.md" ]] || continue
-    target="$AGENT_SKILLS_DIR/$(basename "$skill")"
+    skill="$(dirname -- "$skill")"
+    target="$CODEX_SKILLS_DIR/$(basename "$skill")"
     if [[ "$mode" == symlink ]]; then
+      if [[ -e "$target" && ! -L "$target" ]]; then
+        existing_backup="${target}.before-linux-setup"
+        if [[ -e "$existing_backup" || -L "$existing_backup" ]]; then
+          printf 'Skipped skill with existing backup: %s\n' "$(basename "$skill")" >&2
+          continue
+        fi
+        mv -- "$target" "$existing_backup"
+        printf 'Preserved existing Codex skill: %s\n' "$existing_backup"
+      fi
       ln -sfn "$skill" "$target"
     else
       printf 'Unsupported skills.sync_mode: %s\n' "$mode" >&2
       return 2
     fi
     printf 'Synced skill: %s\n' "$(basename "$skill")"
-  done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d -print0)
+    synced=$((synced + 1))
+  done < <(find "$source_dir" -type f -name SKILL.md -print0)
+  if (( synced == 0 )); then
+    printf 'No SKILL.md files found in %s\n' "$source_dir" >&2
+    return 1
+  fi
+  printf 'Skills checkout: %s\nCodex skills:     %s\n' "$source_dir" "$CODEX_SKILLS_DIR"
 }
 
 fedora_dev_firmware() {
