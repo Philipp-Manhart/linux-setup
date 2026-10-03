@@ -973,6 +973,7 @@ The installer also installs the **Atom One Dark Theme** in the Default, Web Deve
   "window.commandCenter": false,
   "chat.titleBar.openInAgentsWindow.enabled": false,
   "workbench.activityBar.compact": true,
+  "workbench.statusBar.visible": false,
   "workbench.layoutControl.enabled": false,
   "preview.defaultBrowserPreviewType": "external",
   "window.titleBarStyle": "custom",
@@ -982,6 +983,8 @@ The installer also installs the **Atom One Dark Theme** in the Default, Web Deve
 ```
 
 VS Code's `workbench.settings.applyToAllProfiles` mechanism is used so these visual preferences stay synchronized across the Default profile and both development profiles, while language/tool-specific settings remain profile-scoped. Localhost links open in the external browser, the browser title-bar entry is hidden, and chat agents cannot open the integrated browser. VS Code still allows the integrated browser to be opened explicitly from its command palette.
+
+The status bar is hidden and the layout uses compact mode. Explorer delete and drag-and-drop confirmations are disabled, and Git Smart Commit is enabled across profiles. The Web Development profile also uses stacked chat sessions, hides extension recommendations, and disables workbench shadows.
 
 The same keyboard map is written to Default, Web Development, and Python & Data. It uses scan-code bindings for `Ctrl` + the physical backquote/backslash keys, which keeps those shortcuts in the same place on a German layout. `Ctrl+T` toggles the terminal; `Ctrl+Shift+T` creates a terminal; `Ctrl+D` duplicates the current editor line; and `Ctrl+F` is sent to Fish while a terminal is focused, so it accepts Fish's autosuggestion instead of opening VS Code's terminal find UI. Press `Tab` for Fish's normal completion list.
 

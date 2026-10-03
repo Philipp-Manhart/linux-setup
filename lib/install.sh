@@ -730,6 +730,7 @@ cat > "$appearance_tmp" <<'EOF'
   "window.commandCenter": false,
   "chat.titleBar.openInAgentsWindow.enabled": false,
   "workbench.activityBar.compact": true,
+  "workbench.statusBar.visible": false,
   "workbench.layoutControl.enabled": false,
   "preview.defaultBrowserPreviewType": "external",
   "window.titleBarStyle": "custom",
@@ -743,6 +744,9 @@ cat > "$appearance_tmp" <<'EOF'
   "files.insertFinalNewline": true,
   "files.trimTrailingWhitespace": true,
   "workbench.startupEditor": "none",
+  "explorer.confirmDragAndDrop": false,
+  "explorer.confirmDelete": false,
+  "git.enableSmartCommit": true,
   "git.confirmSync": true,
   "git.autofetch": true,
   "git.autofetchPeriod": 180,
@@ -762,6 +766,7 @@ cat > "$appearance_tmp" <<'EOF'
     "window.commandCenter",
     "chat.titleBar.openInAgentsWindow.enabled",
     "workbench.activityBar.compact",
+    "workbench.statusBar.visible",
     "workbench.layoutControl.enabled",
     "preview.defaultBrowserPreviewType",
     "window.titleBarStyle",
@@ -773,6 +778,9 @@ cat > "$appearance_tmp" <<'EOF'
     "files.insertFinalNewline",
     "files.trimTrailingWhitespace",
     "workbench.startupEditor",
+    "explorer.confirmDragAndDrop",
+    "explorer.confirmDelete",
+    "git.enableSmartCommit",
     "git.confirmSync",
     "git.autofetch",
     "git.autofetchPeriod",
@@ -855,6 +863,9 @@ merge_profile_settings() {
 profile_settings_tmp="$(mktemp -d)"
 cat > "$profile_settings_tmp/web.json" <<'EOF'
 {
+  "chat.viewSessions.orientation": "stacked",
+  "extensions.ignoreRecommendations": true,
+  "workbench.shadows": false,
   "[javascript][typescript][json][css][html]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
